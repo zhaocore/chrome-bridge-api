@@ -17,6 +17,8 @@ import (
 
 const version = "dev"
 
+// defaultPort is intentionally a string so release builds can override it with:
+// go build -ldflags "-X main.defaultPort=10087" ./cmd/agent-webbridge
 var defaultPort = "10086"
 
 func main() {
@@ -95,6 +97,7 @@ func serve(paths runtime.Paths, port int) error {
 	}
 	defer runtime.RemovePID(paths)
 
+	log.Printf("starting agent-webbridge version=%s port=%d", version, port)
 	s := server.New(server.Config{Version: version, Port: port}, nil, nil)
 	errCh := make(chan error, 1)
 	go func() {

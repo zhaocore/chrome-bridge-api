@@ -29,6 +29,8 @@ func (s *Store) Prepare(action string, args map[string]any, name string) map[str
 	s.mu.Lock()
 	state := s.sessions[name]
 	if state != nil {
+		// The extension owns browser state. The daemon only injects the tab IDs
+		// it learned from prior navigate/find_tab calls in the same session.
 		switch action {
 		case "list_tabs", "close_session":
 			if len(state.TabIDs) > 0 {
@@ -54,6 +56,7 @@ func (s *Store) Update(action, name string, data any) {
 		return
 	}
 
+	// Only navigation-like tools establish a session target tab.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	state := s.sessions[name]

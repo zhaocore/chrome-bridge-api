@@ -39,9 +39,11 @@ type Manager struct {
 	upgrader websocket.Upgrader
 	nextID   atomic.Uint64
 
-	mu               sync.Mutex
-	conn             *websocket.Conn
-	writeMu          sync.Mutex
+	mu      sync.Mutex
+	conn    *websocket.Conn
+	writeMu sync.Mutex
+	// pending maps daemon request IDs to the HTTP handler waiting for the
+	// matching tool_result from the extension.
 	pending          map[string]chan callResult
 	extensionID      string
 	extensionName    string
@@ -93,6 +95,8 @@ func (m *Manager) ServeWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	m.mu.Lock()
+	// Chrome debugger attachment is global per tab, so keep one active
+	// extension connection to avoid two browsers racing for the same tool calls.
 	if m.conn != nil {
 		m.mu.Unlock()
 		_ = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "another extension is already connected"))
@@ -111,6 +115,7 @@ func (m *Manager) ServeWS(w http.ResponseWriter, r *http.Request) {
 func (m *Manager) Call(ctx context.Context, name string, args map[string]any) (any, error) {
 	requestID := fmt.Sprintf("req-%d", m.nextID.Add(1))
 	resultCh := make(chan callResult, 1)
+	started := time.Now()
 
 	m.mu.Lock()
 	conn := m.conn
@@ -121,6 +126,8 @@ func (m *Manager) Call(ctx context.Context, name string, args map[string]any) (a
 	m.pending[requestID] = resultCh
 	m.mu.Unlock()
 
+	// The extension protocol is request/response over one WebSocket: send a
+	// tool_call now, then wait until handleToolResult resolves this request ID.
 	message := Message{
 		Type:      "tool_call",
 		RequestID: requestID,
@@ -131,14 +138,22 @@ func (m *Manager) Call(ctx context.Context, name string, args map[string]any) (a
 	}
 	if err := m.writeJSON(conn, message); err != nil {
 		m.removePending(requestID)
+		m.logger.Printf("tool_call write_error request_id=%s action=%s error=%q", requestID, name, err.Error())
 		return nil, err
 	}
+	m.logger.Printf("tool_call sent request_id=%s action=%s", requestID, name)
 
 	select {
 	case result := <-resultCh:
+		if result.err != nil {
+			m.logger.Printf("tool_call result_error request_id=%s action=%s duration_ms=%d error=%q", requestID, name, time.Since(started).Milliseconds(), result.err.Error())
+		} else {
+			m.logger.Printf("tool_call result_ok request_id=%s action=%s duration_ms=%d", requestID, name, time.Since(started).Milliseconds())
+		}
 		return result.data, result.err
 	case <-ctx.Done():
 		m.removePending(requestID)
+		m.logger.Printf("tool_call timeout request_id=%s action=%s duration_ms=%d error=%q", requestID, name, time.Since(started).Milliseconds(), ctx.Err().Error())
 		return nil, ctx.Err()
 	}
 }
@@ -189,6 +204,7 @@ func (m *Manager) handleHello(conn *websocket.Conn, msg Message) {
 	m.extensionVersion = version
 	m.extensionID = id
 	m.mu.Unlock()
+	m.logger.Printf("extension hello name=%q version=%q id=%q", name, version, id)
 
 	ack := Message{
 		Type:      "hello_ack",
@@ -205,6 +221,7 @@ func (m *Manager) handleHello(conn *websocket.Conn, msg Message) {
 func (m *Manager) handleToolResult(msg Message) {
 	requestID := msg.ResponseToRequestID
 	if requestID == "" {
+		m.logger.Printf("tool_result ignored missing_response_to_request_id")
 		return
 	}
 
@@ -213,6 +230,7 @@ func (m *Manager) handleToolResult(msg Message) {
 	delete(m.pending, requestID)
 	m.mu.Unlock()
 	if resultCh == nil {
+		m.logger.Printf("tool_result ignored unknown_request_id=%s", requestID)
 		return
 	}
 
@@ -251,6 +269,8 @@ func (m *Manager) disconnect(conn *websocket.Conn) {
 	m.pending = make(map[string]chan callResult)
 	m.mu.Unlock()
 
+	// Unblock all HTTP callers; otherwise /command requests would wait until
+	// their individual timeouts after the browser extension disconnects.
 	for _, resultCh := range pending {
 		resultCh <- callResult{err: ErrExtensionDisconnected}
 	}

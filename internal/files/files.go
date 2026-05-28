@@ -14,6 +14,8 @@ import (
 
 const MaxPDFBytes = 100 * 1024 * 1024
 
+// Normalize converts extension-native base64 payloads into file paths returned
+// to the agent. The agent never needs to receive raw screenshot or PDF bytes.
 func Normalize(action string, args map[string]any, data any) (any, error) {
 	switch action {
 	case "screenshot":
@@ -45,6 +47,8 @@ func normalizeScreenshot(args map[string]any, data any) (any, error) {
 	}
 	path := stringArg(args, "path")
 	if path == "" {
+		// Match the skill contract: caller-supplied paths are honored verbatim;
+		// otherwise write under the OS temp dir.
 		ext := "." + format
 		if format == "jpeg" {
 			ext = ".jpg"
@@ -82,6 +86,7 @@ func normalizePDF(args map[string]any, data any) (any, error) {
 
 	path := stringArg(args, "path")
 	if path == "" {
+		// Use the page title only as a filename hint; sanitize it before writing.
 		title, _ := m["pageTitle"].(string)
 		if title == "" {
 			title = "page"
