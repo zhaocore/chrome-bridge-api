@@ -9,7 +9,7 @@ Go implementation of the Agent WebBridge local daemon. It exposes an HTTP API fo
 
 ## Build
 
-Default port is compiled into the binary. If not overridden, it is `10086`.
+Default port is compiled into the binary. If not overridden, it is `10089`.
 
 ```bash
 go build -o agent-webbridge ./cmd/agent-webbridge
@@ -18,7 +18,7 @@ go build -o agent-webbridge ./cmd/agent-webbridge
 Override the port at build time:
 
 ```bash
-go build -ldflags "-X main.defaultPort=10087" -o agent-webbridge ./cmd/agent-webbridge
+go build -ldflags "-X main.defaultPort=10090" -o agent-webbridge ./cmd/agent-webbridge
 ```
 
 ## Run
@@ -54,16 +54,16 @@ Read logs:
 
 For the default port:
 
-- `GET http://127.0.0.1:10086/status`
-- `POST http://127.0.0.1:10086/command`
-- `GET http://127.0.0.1:10086/tools`
-- `POST http://127.0.0.1:10086/api/connections`
-- `ws://127.0.0.1:10086/ws`
+- `GET http://127.0.0.1:10089/status`
+- `POST http://127.0.0.1:10089/command`
+- `GET http://127.0.0.1:10089/tools`
+- `POST http://127.0.0.1:10089/api/connections`
+- `ws://127.0.0.1:10089/ws`
 
 Example command:
 
 ```bash
-curl -s -X POST http://127.0.0.1:10086/command \
+curl -s -X POST http://127.0.0.1:10089/command \
   -H 'Content-Type: application/json' \
   -d '{"action":"navigate","args":{"url":"https://example.com","newTab":true},"session":"demo"}'
 ```

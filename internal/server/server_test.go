@@ -14,7 +14,7 @@ import (
 )
 
 func TestStatusAndConnections(t *testing.T) {
-	s := New(Config{Version: "test", Host: "127.0.0.1", Port: 10086}, nil, nil)
+	s := New(Config{Version: "test", Host: "127.0.0.1", Port: 10089}, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/status", nil)
 	rec := httptest.NewRecorder()
@@ -36,7 +36,7 @@ func TestStatusAndConnections(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("connections code %d body %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "ws://127.0.0.1:10086/ws") {
+	if !strings.Contains(rec.Body.String(), "ws://127.0.0.1:10089/ws") {
 		t.Fatalf("unexpected connection response %s", rec.Body.String())
 	}
 }

@@ -18,8 +18,8 @@ import (
 const version = "dev"
 
 // defaultPort is intentionally a string so release builds can override it with:
-// go build -ldflags "-X main.defaultPort=10087" ./cmd/agent-webbridge
-var defaultPort = "10086"
+// go build -ldflags "-X main.defaultPort=10090" ./cmd/agent-webbridge
+var defaultPort = "10089"
 
 func main() {
 	if len(os.Args) < 2 {

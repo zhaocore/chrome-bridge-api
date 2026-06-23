@@ -8,7 +8,7 @@
 - WebSocket: `hello`, `hello_ack`, `ping/pong`, `tool_call`, `tool_result`
 - CLI: `start`, `stop`, `restart`, `status`, `logs`, `install-skill`, plus internal `serve`
 - Stack: Go 1.21, Gin, gorilla/websocket
-- Port: compile-time setting. Default is `10086`; override with `go build -ldflags "-X main.defaultPort=10087" ./cmd/agent-webbridge`.
+- Port: compile-time setting. Default is `10089`; override with `go build -ldflags "-X main.defaultPort=10090" ./cmd/agent-webbridge`.
 
 ## Public Interfaces
 

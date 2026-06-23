@@ -15,7 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const DefaultPort = 10086
+const DefaultPort = 10089
 
 type Config struct {
 	Version string
