@@ -1,4 +1,4 @@
-module agent-webbridge-api
+module chrome-bridge-api
 
 go 1.21
 

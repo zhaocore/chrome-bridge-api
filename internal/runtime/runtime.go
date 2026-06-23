@@ -42,12 +42,12 @@ type LogOptions struct {
 
 func DefaultPaths() Paths {
 	home, _ := os.UserHomeDir()
-	install := filepath.Join(home, ".agent-webbridge")
+	install := filepath.Join(home, ".chrome-bridge")
 	return Paths{
 		Home:       home,
 		InstallDir: install,
 		BinDir:     filepath.Join(install, "bin"),
-		PIDFile:    filepath.Join(install, "agent-webbridge.pid"),
+		PIDFile:    filepath.Join(install, "chrome-bridge.pid"),
 		LogFile:    filepath.Join(install, "daemon.log"),
 		PrevLog:    filepath.Join(install, "daemon.prev.log"),
 	}
@@ -109,7 +109,7 @@ func Start(paths Paths, executable string, port int) error {
 	cmd := exec.Command(executable, "serve")
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
-	cmd.Env = append(os.Environ(), "AGENT_WEBBRIDGE_DAEMON=1")
+	cmd.Env = append(os.Environ(), "CHROME_BRIDGE_DAEMON=1")
 	if err := cmd.Start(); err != nil {
 		return err
 	}
@@ -231,11 +231,11 @@ func followFile(path string, out io.Writer) error {
 }
 
 func InstallSkill(repoRoot string, paths Paths) error {
-	src := filepath.Join(repoRoot, "agent-chrome-skill")
+	src := filepath.Join(repoRoot, "chrome-bridge-skill")
 	if _, err := os.Stat(src); err != nil {
 		return err
 	}
-	dst := filepath.Join(paths.InstallDir, "skills", "agent-webbridge")
+	dst := filepath.Join(paths.InstallDir, "skills", "chrome-bridge")
 	_ = os.RemoveAll(dst)
 	return copyDir(src, dst)
 }

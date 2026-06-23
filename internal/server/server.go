@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"time"
 
-	"agent-webbridge-api/internal/bridge"
-	"agent-webbridge-api/internal/files"
-	"agent-webbridge-api/internal/session"
+	"chrome-bridge-api/internal/bridge"
+	"chrome-bridge-api/internal/files"
+	"chrome-bridge-api/internal/session"
 
 	"github.com/gin-gonic/gin"
 )

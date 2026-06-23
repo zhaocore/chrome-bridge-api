@@ -11,14 +11,14 @@ import (
 	"syscall"
 	"time"
 
-	"agent-webbridge-api/internal/runtime"
-	"agent-webbridge-api/internal/server"
+	"chrome-bridge-api/internal/runtime"
+	"chrome-bridge-api/internal/server"
 )
 
 const version = "dev"
 
 // defaultPort is intentionally a string so release builds can override it with:
-// go build -ldflags "-X main.defaultPort=10090" ./cmd/agent-webbridge
+// go build -ldflags "-X main.defaultPort=10090" ./cmd/chrome-bridge
 var defaultPort = "10089"
 
 func main() {
@@ -97,7 +97,7 @@ func serve(paths runtime.Paths, port int) error {
 	}
 	defer runtime.RemovePID(paths)
 
-	log.Printf("starting agent-webbridge version=%s port=%d", version, port)
+	log.Printf("starting chrome-bridge version=%s port=%d", version, port)
 	s := server.New(server.Config{Version: version, Port: port}, nil, nil)
 	errCh := make(chan error, 1)
 	go func() {
@@ -129,18 +129,18 @@ func findRepoRoot() (string, error) {
 		return "", err
 	}
 	for dir := wd; ; dir = filepath.Dir(dir) {
-		if _, err := os.Stat(filepath.Join(dir, "agent-chrome-skill", "SKILL.md")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "chrome-bridge-skill", "SKILL.md")); err == nil {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("could not find agent-chrome-skill from %s", wd)
+			return "", fmt.Errorf("could not find chrome-bridge-skill from %s", wd)
 		}
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: agent-webbridge <start|stop|restart|status|logs|install-skill|serve>")
+	fmt.Fprintln(os.Stderr, "usage: chrome-bridge <start|stop|restart|status|logs|install-skill|serve>")
 }
 
 func fatal(err error) {

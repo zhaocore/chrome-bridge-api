@@ -1,14 +1,14 @@
-# agent-api Go/Gin 技术方案
+# chrome-bridge-api Go/Gin 技术方案
 
 ## Summary
 
-`agent-api` implements the local Agent WebBridge daemon in Go. It exposes the agent-facing HTTP API on `127.0.0.1:<compiled-port>`, accepts Chrome extension WebSocket connections at `/ws`, and forwards browser tool calls through the extension protocol already used by `agent-chrome-plugin`.
+`chrome-bridge-api` implements the local Chrome Bridge daemon in Go. It exposes the agent-facing HTTP API on `127.0.0.1:<compiled-port>`, accepts Chrome extension WebSocket connections at `/ws`, and forwards browser tool calls through the extension protocol already used by `chrome-bridge-plugin`.
 
 - HTTP: `GET /status`, `POST /command`, `GET /tools`, `POST /api/connections`
 - WebSocket: `hello`, `hello_ack`, `ping/pong`, `tool_call`, `tool_result`
 - CLI: `start`, `stop`, `restart`, `status`, `logs`, `install-skill`, plus internal `serve`
 - Stack: Go 1.21, Gin, gorilla/websocket
-- Port: compile-time setting. Default is `10089`; override with `go build -ldflags "-X main.defaultPort=10090" ./cmd/agent-webbridge`.
+- Port: compile-time setting. Default is `10089`; override with `go build -ldflags "-X main.defaultPort=10090" ./cmd/chrome-bridge`.
 
 ## Public Interfaces
 
@@ -26,7 +26,7 @@
 The Chrome extension connects to `GET /ws` and sends:
 
 ```json
-{"type":"hello","payload":{"extensionName":"webbridge-lite","extensionVersion":"0.1.0"}}
+{"type":"hello","payload":{"extensionName":"chrome-bridge-lite","extensionVersion":"0.1.0"}}
 ```
 
 The daemon responds:
@@ -55,7 +55,7 @@ or:
 
 ## Implementation
 
-- `cmd/agent-webbridge`: CLI entrypoint.
+- `cmd/chrome-bridge`: CLI entrypoint.
 - `internal/server`: Gin router and HTTP handlers.
 - `internal/bridge`: WebSocket client management, request IDs, pending calls, timeout and disconnect handling.
 - `internal/session`: `session -> tabIds/current tab` state and tool arg injection.

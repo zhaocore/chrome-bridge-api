@@ -1,24 +1,24 @@
-# agent-api
+# chrome-bridge-api
 
-Go implementation of the Agent WebBridge local daemon. It exposes an HTTP API for agents and a WebSocket bridge for the Chrome extension under `agent-chrome-plugin`.
+Go implementation of the Chrome Bridge local daemon. It exposes an HTTP API for agents and a WebSocket bridge for the Chrome extension under `chrome-bridge-plugin`.
 
 ## Requirements
 
 - Go 1.21+
-- Chrome extension loaded from `../agent-chrome-plugin/dist`
+- Chrome extension loaded from `../chrome-bridge-plugin/dist`
 
 ## Build
 
 Default port is compiled into the binary. If not overridden, it is `10089`.
 
 ```bash
-go build -o agent-webbridge ./cmd/agent-webbridge
+make build
 ```
 
 Override the port at build time:
 
 ```bash
-go build -ldflags "-X main.defaultPort=10090" -o agent-webbridge ./cmd/agent-webbridge
+make build PORT=10090
 ```
 
 ## Run
@@ -26,28 +26,28 @@ go build -ldflags "-X main.defaultPort=10090" -o agent-webbridge ./cmd/agent-web
 Start the daemon in the background:
 
 ```bash
-./agent-webbridge start
+./chrome-bridge start
 ```
 
 Check status:
 
 ```bash
-./agent-webbridge status
+./chrome-bridge status
 ```
 
 Stop or restart:
 
 ```bash
-./agent-webbridge stop
-./agent-webbridge restart
+./chrome-bridge stop
+./chrome-bridge restart
 ```
 
 Read logs:
 
 ```bash
-./agent-webbridge logs -n 100
-./agent-webbridge logs -f
-./agent-webbridge logs --prev
+./chrome-bridge logs -n 100
+./chrome-bridge logs -f
+./chrome-bridge logs --prev
 ```
 
 ## API
@@ -69,6 +69,12 @@ curl -s -X POST http://127.0.0.1:10089/command \
 ```
 
 ## Test
+
+```bash
+make test
+```
+
+Equivalent raw Go command:
 
 ```bash
 GOTOOLCHAIN=local go test ./...

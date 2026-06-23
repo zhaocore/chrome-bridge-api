@@ -53,7 +53,7 @@ func normalizeScreenshot(args map[string]any, data any) (any, error) {
 		if format == "jpeg" {
 			ext = ".jpg"
 		}
-		path = filepath.Join(os.TempDir(), "agent-webbridge-screenshots", fmt.Sprintf("screenshot-%d%s", time.Now().UnixNano(), ext))
+		path = filepath.Join(os.TempDir(), "chrome-bridge-screenshots", fmt.Sprintf("screenshot-%d%s", time.Now().UnixNano(), ext))
 	}
 	if err := writeFile(path, decoded); err != nil {
 		return nil, err
@@ -91,7 +91,7 @@ func normalizePDF(args map[string]any, data any) (any, error) {
 		if title == "" {
 			title = "page"
 		}
-		path = filepath.Join(os.TempDir(), "agent-webbridge-pdfs", fmt.Sprintf("%s-%d.pdf", sanitizeFilePart(title), time.Now().UnixNano()))
+		path = filepath.Join(os.TempDir(), "chrome-bridge-pdfs", fmt.Sprintf("%s-%d.pdf", sanitizeFilePart(title), time.Now().UnixNano()))
 	}
 	if err := writeFile(path, decoded); err != nil {
 		return nil, err
