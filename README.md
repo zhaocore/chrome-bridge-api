@@ -26,28 +26,28 @@ make build PORT=10090
 Start the daemon in the background:
 
 ```bash
-./chrome-bridge start
+./bin/chrome-bridge start
 ```
 
 Check status:
 
 ```bash
-./chrome-bridge status
+./bin/chrome-bridge status
 ```
 
 Stop or restart:
 
 ```bash
-./chrome-bridge stop
-./chrome-bridge restart
+./bin/chrome-bridge stop
+./bin/chrome-bridge restart
 ```
 
 Read logs:
 
 ```bash
-./chrome-bridge logs -n 100
-./chrome-bridge logs -f
-./chrome-bridge logs --prev
+./bin/chrome-bridge logs -n 100
+./bin/chrome-bridge logs -f
+./bin/chrome-bridge logs --prev
 ```
 
 ## API

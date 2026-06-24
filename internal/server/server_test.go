@@ -68,7 +68,7 @@ func TestCommandOverWebSocketAndSessionInjection(t *testing.T) {
 	if err := conn.WriteJSON(map[string]any{
 		"type": "hello",
 		"payload": map[string]any{
-			"extensionName":    "chrome-bridge-lite",
+			"extensionName":    "chrome-bridge",
 			"extensionVersion": "0.1.0",
 		},
 	}); err != nil {

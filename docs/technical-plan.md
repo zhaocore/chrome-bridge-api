@@ -26,7 +26,7 @@
 The Chrome extension connects to `GET /ws` and sends:
 
 ```json
-{"type":"hello","payload":{"extensionName":"chrome-bridge-lite","extensionVersion":"0.1.0"}}
+{"type":"hello","payload":{"extensionName":"chrome-bridge","extensionVersion":"0.1.0"}}
 ```
 
 The daemon responds:
