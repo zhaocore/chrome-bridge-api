@@ -1,3 +1,6 @@
+// Package runtime handles the daemon's on-disk lifecycle: install paths, PID
+// files, log rotation, background start/stop, status probing, log tailing, and
+// skill installation. It is used by the CLI subcommands in cmd/chrome-bridge.
 package runtime
 
 import (
@@ -15,6 +18,7 @@ import (
 	"time"
 )
 
+// Paths holds the daemon's filesystem locations under ~/.chrome-bridge.
 type Paths struct {
 	Home       string
 	InstallDir string
@@ -24,6 +28,8 @@ type Paths struct {
 	PrevLog    string
 }
 
+// Status is the daemon health report returned to the CLI status subcommand and
+// HTTP /status callers.
 type Status struct {
 	Running            bool   `json:"running"`
 	Port               int    `json:"port"`
@@ -34,12 +40,14 @@ type Status struct {
 	UptimeSeconds      int    `json:"uptime_seconds"`
 }
 
+// LogOptions configures the logs subcommand output.
 type LogOptions struct {
 	Lines    int
 	Follow   bool
 	Previous bool
 }
 
+// DefaultPaths returns the standard install layout rooted at ~/.chrome-bridge.
 func DefaultPaths() Paths {
 	home, _ := os.UserHomeDir()
 	install := filepath.Join(home, ".chrome-bridge")
@@ -53,6 +61,7 @@ func DefaultPaths() Paths {
 	}
 }
 
+// EnsureDirs creates the install and bin directories if they are missing.
 func EnsureDirs(paths Paths) error {
 	if err := os.MkdirAll(paths.InstallDir, 0o755); err != nil {
 		return err
@@ -60,6 +69,7 @@ func EnsureDirs(paths Paths) error {
 	return os.MkdirAll(paths.BinDir, 0o755)
 }
 
+// WritePID persists pid to the PID file, creating directories as needed.
 func WritePID(paths Paths, pid int) error {
 	if err := EnsureDirs(paths); err != nil {
 		return err
@@ -67,6 +77,7 @@ func WritePID(paths Paths, pid int) error {
 	return os.WriteFile(paths.PIDFile, []byte(strconv.Itoa(pid)), 0o644)
 }
 
+// ReadPID reads and parses the PID from the PID file.
 func ReadPID(paths Paths) (int, error) {
 	raw, err := os.ReadFile(paths.PIDFile)
 	if err != nil {
@@ -79,10 +90,13 @@ func ReadPID(paths Paths) (int, error) {
 	return pid, nil
 }
 
+// RemovePID deletes the PID file, ignoring errors if it is absent.
 func RemovePID(paths Paths) {
 	_ = os.Remove(paths.PIDFile)
 }
 
+// BaseURL returns the http://host:port base URL for the daemon, defaulting host
+// to 127.0.0.1 when empty.
 func BaseURL(host string, port int) string {
 	if host == "" {
 		host = "127.0.0.1"
@@ -90,6 +104,8 @@ func BaseURL(host string, port int) string {
 	return fmt.Sprintf("http://%s:%d", host, port)
 }
 
+// Start launches the daemon as a detached background process, rotating the
+// previous log file first. It is a no-op if a daemon is already running on port.
 func Start(paths Paths, executable string, port int) error {
 	if err := EnsureDirs(paths); err != nil {
 		return err
@@ -119,6 +135,7 @@ func Start(paths Paths, executable string, port int) error {
 	return cmd.Process.Release()
 }
 
+// Stop sends SIGTERM to the daemon named by the PID file and removes the PID file.
 func Stop(paths Paths) error {
 	pid, err := ReadPID(paths)
 	if err != nil {
@@ -135,6 +152,8 @@ func Stop(paths Paths) error {
 	return nil
 }
 
+// FetchStatus queries a daemon's /status endpoint. On failure it returns a
+// not-running Status carrying fallbackPort.
 func FetchStatus(baseURL string, timeout time.Duration, fallbackPort int) (Status, error) {
 	client := &http.Client{Timeout: timeout}
 	resp, err := client.Get(strings.TrimRight(baseURL, "/") + "/status")
@@ -153,6 +172,7 @@ func FetchStatus(baseURL string, timeout time.Duration, fallbackPort int) (Statu
 	return status, nil
 }
 
+// ParseLogOptions parses the logs subcommand flags: -n <lines>, -f, --prev.
 func ParseLogOptions(args []string) (LogOptions, error) {
 	opts := LogOptions{Lines: 100}
 	for i := 0; i < len(args); i++ {
@@ -178,6 +198,8 @@ func ParseLogOptions(args []string) (LogOptions, error) {
 	return opts, nil
 }
 
+// PrintLogs writes the last opts.Lines log lines to out, optionally following
+// the file for new entries.
 func PrintLogs(paths Paths, opts LogOptions, out io.Writer) error {
 	path := paths.LogFile
 	if opts.Previous {
@@ -203,6 +225,7 @@ func PrintLogs(paths Paths, opts LogOptions, out io.Writer) error {
 	return nil
 }
 
+// followFile tails path to out, polling every 500ms for new bytes.
 func followFile(path string, out io.Writer) error {
 	file, err := os.Open(path)
 	if err != nil {
@@ -230,6 +253,8 @@ func followFile(path string, out io.Writer) error {
 	}
 }
 
+// InstallSkill copies chrome-bridge-skill from repoRoot into the daemon's skill
+// directory, replacing any prior copy.
 func InstallSkill(repoRoot string, paths Paths) error {
 	src := filepath.Join(repoRoot, "chrome-bridge-skill")
 	if _, err := os.Stat(src); err != nil {
@@ -240,6 +265,7 @@ func InstallSkill(repoRoot string, paths Paths) error {
 	return copyDir(src, dst)
 }
 
+// copyDir recursively copies the src directory tree to dst.
 func copyDir(src, dst string) error {
 	return filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
 		if err != nil {

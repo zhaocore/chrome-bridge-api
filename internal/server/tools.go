@@ -2,12 +2,16 @@ package server
 
 import "fmt"
 
+// ToolMeta describes a tool's required and optional argument keys, surfaced via
+// GET /tools and used to validate POST /command requests.
 type ToolMeta struct {
 	Name     string   `json:"name"`
 	Required []string `json:"required,omitempty"`
 	Optional []string `json:"optional,omitempty"`
 }
 
+// toolMetas is the registry of tools the extension supports. It is the source
+// of truth for both the /tools listing and argument validation.
 var toolMetas = []ToolMeta{
 	{Name: "navigate", Required: []string{"url"}, Optional: []string{"newTab", "new_tab", "group_title"}},
 	{Name: "find_tab", Required: []string{"url"}, Optional: []string{"active"}},
@@ -28,6 +32,7 @@ var toolMetas = []ToolMeta{
 	{Name: "send_keys", Required: []string{"keys"}, Optional: []string{"repeat"}},
 }
 
+// toolsByName indexes toolMetas by tool name for O(1) validation lookups.
 var toolsByName = func() map[string]ToolMeta {
 	out := make(map[string]ToolMeta, len(toolMetas))
 	for _, tool := range toolMetas {
@@ -36,6 +41,9 @@ var toolsByName = func() map[string]ToolMeta {
 	return out
 }()
 
+// ValidateTool checks that args contains all required keys for the named tool
+// and enforces the network action's per-cmd rules. It returns an error naming
+// the first missing or invalid argument.
 func ValidateTool(name string, args map[string]any) error {
 	meta, ok := toolsByName[name]
 	if !ok {

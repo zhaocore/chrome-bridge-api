@@ -1,3 +1,7 @@
+// Package server implements the HTTP API exposed to agents. POST /command
+// forwards tool calls to the extension via the bridge, GET /tools lists the
+// available actions, GET /ws accepts the extension WebSocket, and
+// GET /status reports daemon health.
 package server
 
 import (
@@ -15,8 +19,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// DefaultPort is the port the daemon listens on when Config.Port is unset.
 const DefaultPort = 10089
 
+// Config configures a Server. Zero values are replaced with sensible defaults
+// by New.
 type Config struct {
 	Version string
 	Host    string
@@ -24,6 +31,8 @@ type Config struct {
 	Logger  bridge.Logger
 }
 
+// Server is the daemon's HTTP server, wiring requests to the bridge and session
+// store.
 type Server struct {
 	cfg      Config
 	started  time.Time
@@ -33,6 +42,7 @@ type Server struct {
 	logger   bridge.Logger
 }
 
+// CommandRequest is the body of POST /command.
 type CommandRequest struct {
 	Action    string         `json:"action"`
 	Args      map[string]any `json:"args"`
@@ -40,6 +50,8 @@ type CommandRequest struct {
 	TimeoutMS int            `json:"timeout_ms"`
 }
 
+// New builds a Server, substituting defaults for zero-value config fields and
+// constructing a bridge manager and session store when none are provided.
 func New(cfg Config, bridgeManager *bridge.Manager, sessions *session.Store) *Server {
 	if cfg.Version == "" {
 		cfg.Version = "dev"
@@ -71,14 +83,18 @@ func New(cfg Config, bridgeManager *bridge.Manager, sessions *session.Store) *Se
 	return s
 }
 
+// Router returns the underlying HTTP handler, mainly for testing.
 func (s *Server) Router() http.Handler {
 	return s.router
 }
 
+// Bridge returns the bridge manager, mainly for testing.
 func (s *Server) Bridge() *bridge.Manager {
 	return s.bridge
 }
 
+// routes registers the API endpoints on a fresh gin engine with recovery and
+// request logging middleware.
 func (s *Server) routes() *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -93,6 +109,7 @@ func (s *Server) routes() *gin.Engine {
 	return r
 }
 
+// handleStatus reports whether the daemon is running and whether an extension is connected.
 func (s *Server) handleStatus(c *gin.Context) {
 	status := s.bridge.Status()
 	c.JSON(http.StatusOK, gin.H{
@@ -106,10 +123,12 @@ func (s *Server) handleStatus(c *gin.Context) {
 	})
 }
 
+// handleTools lists the tools the extension supports and their argument keys.
 func (s *Server) handleTools(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"tools": toolMetas})
 }
 
+// handleConnection returns the WebSocket URL and port the extension should connect to.
 func (s *Server) handleConnection(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"url":  "ws://" + s.cfg.Host + ":" + strconv.Itoa(s.cfg.Port) + "/ws",
@@ -117,6 +136,8 @@ func (s *Server) handleConnection(c *gin.Context) {
 	})
 }
 
+// handleCommand validates and forwards a tool call to the extension, then
+// normalizes any binary result into a file path before responding.
 func (s *Server) handleCommand(c *gin.Context) {
 	started := time.Now()
 	var req CommandRequest
@@ -168,11 +189,14 @@ func (s *Server) handleCommand(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": data})
 }
 
+// ListenAndServe starts the HTTP server on the configured host:port and blocks
+// until it stops.
 func (s *Server) ListenAndServe() error {
 	s.logger.Printf("server listening host=%s port=%d version=%s", s.cfg.Host, s.cfg.Port, s.cfg.Version)
 	return http.ListenAndServe(s.cfg.Host+":"+strconv.Itoa(s.cfg.Port), s.router)
 }
 
+// requestLogger returns middleware that logs one line per HTTP request.
 func (s *Server) requestLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		started := time.Now()

@@ -1,21 +1,30 @@
+// Package session tracks the tab IDs the daemon has learned for a named agent
+// session so subsequent tool calls target the right tab without the agent
+// re-stating it. The extension owns the browser; this package only remembers
+// the tab IDs returned by prior navigate/find_tab calls.
 package session
 
 import "sync"
 
+// Store maps session names to their tab state. It is safe for concurrent use.
 type Store struct {
 	mu       sync.Mutex
 	sessions map[string]*State
 }
 
+// State is the per-session tab tracking data injected into tool calls.
 type State struct {
 	TabID  int
 	TabIDs []int
 }
 
+// NewStore returns an empty session store.
 func NewStore() *Store {
 	return &Store{sessions: make(map[string]*State)}
 }
 
+// Prepare clones args and injects the session name and any learned tab IDs
+// relevant to action. With no session name it returns args unchanged.
 func (s *Store) Prepare(action string, args map[string]any, name string) map[string]any {
 	prepared := make(map[string]any, len(args)+2)
 	for key, value := range args {
@@ -47,6 +56,8 @@ func (s *Store) Prepare(action string, args map[string]any, name string) map[str
 	return prepared
 }
 
+// Update records the tab ID returned by navigate or find_tab into the named
+// session. Other actions are ignored.
 func (s *Store) Update(action, name string, data any) {
 	if name == "" || (action != "navigate" && action != "find_tab") {
 		return
@@ -73,6 +84,8 @@ func (s *Store) Update(action, name string, data any) {
 	state.TabIDs = append(state.TabIDs, tabID)
 }
 
+// Snapshot returns a copy of the named session's state, or the zero value if
+// the session has no recorded state.
 func (s *Store) Snapshot(name string) State {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -83,6 +96,8 @@ func (s *Store) Snapshot(name string) State {
 	return State{TabID: state.TabID, TabIDs: append([]int(nil), state.TabIDs...)}
 }
 
+// extractTabID pulls the tabId field from a tool result payload, tolerating the
+// numeric widths JSON unmarshaling may produce.
 func extractTabID(data any) (int, bool) {
 	m, ok := data.(map[string]any)
 	if !ok {

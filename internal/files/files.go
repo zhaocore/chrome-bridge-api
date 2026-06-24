@@ -1,3 +1,6 @@
+// Package files normalizes extension tool results that carry binary payloads
+// (screenshots, PDFs): it decodes the base64, writes it to disk, and returns a
+// path so the agent never receives raw bytes.
 package files
 
 import (
@@ -12,6 +15,7 @@ import (
 	"time"
 )
 
+// MaxPDFBytes caps the size of a decoded PDF before it is written to disk.
 const MaxPDFBytes = 100 * 1024 * 1024
 
 // Normalize converts extension-native base64 payloads into file paths returned
@@ -27,6 +31,8 @@ func Normalize(action string, args map[string]any, data any) (any, error) {
 	}
 }
 
+// normalizeScreenshot decodes the screenshot payload and writes it to a file,
+// honoring a caller-supplied path or writing under the OS temp dir.
 func normalizeScreenshot(args map[string]any, data any) (any, error) {
 	m, ok := data.(map[string]any)
 	if !ok {
@@ -67,6 +73,8 @@ func normalizeScreenshot(args map[string]any, data any) (any, error) {
 	}, nil
 }
 
+// normalizePDF decodes the PDF payload, enforces MaxPDFBytes, and writes it to a
+// file named after the page title (or a caller-supplied path).
 func normalizePDF(args map[string]any, data any) (any, error) {
 	m, ok := data.(map[string]any)
 	if !ok {
@@ -105,6 +113,7 @@ func normalizePDF(args map[string]any, data any) (any, error) {
 	}, nil
 }
 
+// writeFile creates the parent directory and writes data to path.
 func writeFile(path string, data []byte) error {
 	if path == "" {
 		return errors.New("path is empty")
@@ -115,13 +124,17 @@ func writeFile(path string, data []byte) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
+// stringArg returns args[key] as a string, or "" if absent or non-string.
 func stringArg(args map[string]any, key string) string {
 	value, _ := args[key].(string)
 	return value
 }
 
+// unsafeFileChars matches any character that is unsafe in a filename.
 var unsafeFileChars = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 
+// sanitizeFilePart collapses unsafe characters to dashes and trims the result
+// for use as a filename hint.
 func sanitizeFilePart(value string) string {
 	value = strings.Trim(unsafeFileChars.ReplaceAllString(value, "-"), ".-")
 	if value == "" {
