@@ -4,10 +4,13 @@
 package runtime
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -253,8 +256,155 @@ func followFile(path string, out io.Writer) error {
 	}
 }
 
+// skillRepoURL is the GitHub archive URL for the chrome-bridge-skill repo.
+const skillRepoURL = "https://github.com/zhaocore/chrome-bridge-skill/archive/refs/heads/master.zip"
+
+// DownloadAndInstallSkill downloads the chrome-bridge-skill repo as a zip
+// archive from GitHub, extracts it to a temporary directory, and copies the
+// contents into the daemon's skill directory. The temporary directory is
+// removed when finished.
+func DownloadAndInstallSkill(paths Paths) error {
+	tmpDir, err := os.MkdirTemp("", "chrome-bridge-skill-*")
+	if err != nil {
+		return fmt.Errorf("create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	resp, err := http.Get(skillRepoURL)
+	if err != nil {
+		return fmt.Errorf("download skill archive: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download skill archive: HTTP %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read skill archive: %w", err)
+	}
+
+	zipReader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		return fmt.Errorf("open skill archive: %w", err)
+	}
+
+	for _, f := range zipReader.File {
+		if err := extractZipFile(f, tmpDir); err != nil {
+			return fmt.Errorf("extract %s: %w", f.Name, err)
+		}
+	}
+
+	// GitHub archives extract to <repo>-<branch>/ e.g. chrome-bridge-skill-master/
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		return fmt.Errorf("read extracted dir: %w", err)
+	}
+	if len(entries) == 0 {
+		return fmt.Errorf("extracted archive is empty")
+	}
+	src := filepath.Join(tmpDir, entries[0].Name())
+	if !entries[0].IsDir() {
+		return fmt.Errorf("expected directory in archive root, got file %s", entries[0].Name())
+	}
+
+	dst := filepath.Join(paths.InstallDir, "skills", "chrome-bridge")
+	_ = os.RemoveAll(dst)
+	if err := copyDir(src, dst); err != nil {
+		return fmt.Errorf("copy skill files: %w", err)
+	}
+
+	// Create symlinks in discovered agent skill directories so multiple
+	// agents share the same skill installation.
+	linked := linkSkillToAgents(dst)
+	if len(linked) > 0 {
+		log.Printf("skill linked to %d agent(s): %s", len(linked), strings.Join(linked, ", "))
+	}
+	return nil
+}
+
+// agentSkillDirs lists common agent skill directory patterns relative to the
+// user's home directory. Each entry is a glob pattern; directories that exist
+// are used as symlink targets.
+var agentSkillDirs = []string{
+	".claude/skills",
+	".agents/skills",
+	".codex/skills",
+	".cursor/skills",
+	".cline/skills",
+	".continue/skills",
+	".windsurf/skills",
+	".roo/skills",
+	".vscode/skills",
+}
+
+// linkSkillToAgents scans for existing agent skill directories under the
+// user's home and creates a symlink named "chrome-bridge" in each one pointing
+// to skillDir. Returns the list of agent paths where a symlink was created or
+// already existed.
+func linkSkillToAgents(skillDir string) []string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+	var linked []string
+	for _, rel := range agentSkillDirs {
+		agentDir := filepath.Join(home, rel)
+		if info, err := os.Stat(agentDir); err != nil || !info.IsDir() {
+			continue
+		}
+		linkPath := filepath.Join(agentDir, "chrome-bridge")
+		if err := symlinkSkill(skillDir, linkPath); err != nil {
+			log.Printf("warning: could not link skill to %s: %v", agentDir, err)
+			continue
+		}
+		linked = append(linked, rel)
+	}
+	return linked
+}
+
+// symlinkSkill creates a symlink at linkPath pointing to target, replacing any
+// existing symlink or directory at that path. If linkPath already points to
+// target, it is a no-op.
+func symlinkSkill(target, linkPath string) error {
+	// Check if a valid symlink already exists.
+	if existing, err := os.Readlink(linkPath); err == nil && existing == target {
+		return nil
+	}
+	// Remove existing file/symlink/directory at linkPath.
+	_ = os.RemoveAll(linkPath)
+	return os.Symlink(target, linkPath)
+}
+
+// extractZipFile extracts a single zip entry to destDir, preserving paths.
+func extractZipFile(f *zip.File, destDir string) error {
+	target := filepath.Join(destDir, f.Name)
+	if !strings.HasPrefix(filepath.Clean(target), filepath.Clean(destDir)+string(os.PathSeparator)) {
+		return fmt.Errorf("zip path escapes destination: %s", f.Name)
+	}
+	if f.FileInfo().IsDir() {
+		return os.MkdirAll(target, 0o755)
+	}
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return err
+	}
+	rc, err := f.Open()
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+	out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, rc)
+	return err
+}
+
 // InstallSkill copies chrome-bridge-skill from repoRoot into the daemon's skill
-// directory, replacing any prior copy.
+// directory, replacing any prior copy, then links it to discovered agent skill
+// directories.
 func InstallSkill(repoRoot string, paths Paths) error {
 	src := filepath.Join(repoRoot, "chrome-bridge-skill")
 	if _, err := os.Stat(src); err != nil {
@@ -262,7 +412,14 @@ func InstallSkill(repoRoot string, paths Paths) error {
 	}
 	dst := filepath.Join(paths.InstallDir, "skills", "chrome-bridge")
 	_ = os.RemoveAll(dst)
-	return copyDir(src, dst)
+	if err := copyDir(src, dst); err != nil {
+		return err
+	}
+	linked := linkSkillToAgents(dst)
+	if len(linked) > 0 {
+		log.Printf("skill linked to %d agent(s): %s", len(linked), strings.Join(linked, ", "))
+	}
+	return nil
 }
 
 // copyDir recursively copies the src directory tree to dst.

@@ -9,7 +9,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -83,11 +82,7 @@ func main() {
 			fatal(err)
 		}
 	case "install-skill":
-		repoRoot, err := findRepoRoot()
-		if err != nil {
-			fatal(err)
-		}
-		if err := runtime.InstallSkill(repoRoot, paths); err != nil {
+		if err := runtime.DownloadAndInstallSkill(paths); err != nil {
 			fatal(err)
 		}
 		fmt.Println("skill installed")
@@ -130,25 +125,6 @@ func parsePort(value string) (int, error) {
 		return 0, fmt.Errorf("invalid defaultPort %q: must be 1-65535", value)
 	}
 	return port, nil
-}
-
-// findRepoRoot walks up from the working directory looking for the
-// chrome-bridge-skill directory, used by install-skill to locate the skill
-// files to copy.
-func findRepoRoot() (string, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	for dir := wd; ; dir = filepath.Dir(dir) {
-		if _, err := os.Stat(filepath.Join(dir, "chrome-bridge-skill", "SKILL.md")); err == nil {
-			return dir, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", fmt.Errorf("could not find chrome-bridge-skill from %s", wd)
-		}
-	}
 }
 
 // usage prints the CLI subcommand list to stderr.
