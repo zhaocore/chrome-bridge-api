@@ -336,6 +336,8 @@ var agentSkillDirs = []string{
 	".windsurf/skills",
 	".roo/skills",
 	".vscode/skills",
+	".openclaw/skills",
+	".hermes/skills",
 }
 
 // linkSkillToAgents scans for existing agent skill directories under the
