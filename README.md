@@ -139,7 +139,8 @@ Default listen address: `127.0.0.1:10089`
 
 ### `GET /status`
 
-Returns daemon health and connection state, including whether an extension is connected.
+Returns daemon health and connection state. `extensions` lists every connected
+extension instance and its stable `instance_id`.
 
 Example:
 
@@ -181,6 +182,7 @@ Request body:
     "newTab": true
   },
   "session": "demo",
+  "instance_id": "4dfe0e08-cdd2-4f53-a36d-c39f1eaab1b8",
   "timeout_ms": 30000
 }
 ```
@@ -190,6 +192,9 @@ Fields:
 - `action`: tool name to invoke
 - `args`: tool arguments
 - `session`: optional session name for multi-step workflows
+- `instance_id`: optional connected extension identity. Required for the first
+  command when multiple extensions are connected. A session is bound to the
+  selected instance after a successful `navigate` or `find_tab`.
 - `timeout_ms`: optional per-call timeout, default `30000`
 
 Example:
@@ -238,9 +243,14 @@ Important server-side behaviors:
 - **Extension not connected**: typically returns `503`
 - **Command timeout**: typically returns `504`
 - **Extension execution error**: typically returns `502`
-- **Second extension connection**: rejected to avoid multiple browser instances racing on the same bridge
+- **Multiple extensions without `instance_id`**: returns `409` unless the session
+  is already bound to an extension instance
+- **Session/instance mismatch**: returns `409`
 
-The design intentionally keeps only one active extension connection at a time because Chrome debugger attachment is effectively global per tab.
+Each extension installation persists a UUID in `chrome.storage.local` and sends
+it in the WebSocket `hello`. The daemon routes commands by that identity; it is
+a routing key, not an authentication credential. Reconnecting with the same UUID
+replaces the old connection.
 
 ## Development and Testing
 

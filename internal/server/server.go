@@ -44,10 +44,11 @@ type Server struct {
 
 // CommandRequest is the body of POST /command.
 type CommandRequest struct {
-	Action    string         `json:"action"`
-	Args      map[string]any `json:"args"`
-	Session   string         `json:"session"`
-	TimeoutMS int            `json:"timeout_ms"`
+	Action     string         `json:"action"`
+	Args       map[string]any `json:"args"`
+	Session    string         `json:"session"`
+	InstanceID string         `json:"instance_id"`
+	TimeoutMS  int            `json:"timeout_ms"`
 }
 
 // New builds a Server, substituting defaults for zero-value config fields and
@@ -117,8 +118,10 @@ func (s *Server) handleStatus(c *gin.Context) {
 		"port":                s.cfg.Port,
 		"version":             s.cfg.Version,
 		"extension_connected": status.Connected,
+		"instance_id":         status.InstanceID,
 		"extension_id":        status.ExtensionID,
 		"extension_version":   status.ExtensionVersion,
+		"extensions":          status.Instances,
 		"uptime_seconds":      int(time.Since(s.started).Seconds()),
 	})
 }
@@ -154,17 +157,34 @@ func (s *Server) handleCommand(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	timeout := 30 * time.Second
 	if req.TimeoutMS > 0 {
 		timeout = time.Duration(req.TimeoutMS) * time.Millisecond
 	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
 	defer cancel()
+	unlockSession, err := s.sessions.LockSession(ctx, req.Session)
+	if err != nil {
+		status := http.StatusBadGateway
+		if errors.Is(err, context.DeadlineExceeded) {
+			status = http.StatusGatewayTimeout
+		}
+		s.logger.Printf("command session_lock_error action=%s session=%q status=%d error=%q", req.Action, req.Session, status, err.Error())
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	defer unlockSession()
+
+	instanceID, err := s.sessions.ResolveInstance(req.Session, req.InstanceID)
+	if err != nil {
+		s.logger.Printf("command instance_conflict action=%s session=%q error=%q", req.Action, req.Session, err.Error())
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
 
 	args := s.sessions.Prepare(req.Action, req.Args, req.Session)
-	s.logger.Printf("command start action=%s session=%q timeout_ms=%d", req.Action, req.Session, int(timeout/time.Millisecond))
-	data, err := s.bridge.Call(ctx, req.Action, args)
+	s.logger.Printf("command start action=%s session=%q instance_id=%q timeout_ms=%d", req.Action, req.Session, instanceID, int(timeout/time.Millisecond))
+	data, selectedInstanceID, err := s.bridge.Call(ctx, instanceID, req.Action, args)
 	if err != nil {
 		status := http.StatusBadGateway
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -172,6 +192,9 @@ func (s *Server) handleCommand(c *gin.Context) {
 		}
 		if errors.Is(err, bridge.ErrExtensionNotConnected) {
 			status = http.StatusServiceUnavailable
+		}
+		if errors.Is(err, bridge.ErrExtensionAmbiguous) {
+			status = http.StatusConflict
 		}
 		s.logger.Printf("command error action=%s session=%q status=%d duration_ms=%d error=%q", req.Action, req.Session, status, time.Since(started).Milliseconds(), err.Error())
 		c.JSON(status, gin.H{"error": err.Error()})
@@ -184,8 +207,8 @@ func (s *Server) handleCommand(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	s.sessions.Update(req.Action, req.Session, data)
-	s.logger.Printf("command success action=%s session=%q duration_ms=%d", req.Action, req.Session, time.Since(started).Milliseconds())
+	s.sessions.Update(req.Action, req.Session, selectedInstanceID, data)
+	s.logger.Printf("command success action=%s session=%q instance_id=%q duration_ms=%d", req.Action, req.Session, selectedInstanceID, time.Since(started).Milliseconds())
 	c.JSON(http.StatusOK, gin.H{"data": data})
 }
 

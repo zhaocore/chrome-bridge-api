@@ -34,13 +34,23 @@ type Paths struct {
 // Status is the daemon health report returned to the CLI status subcommand and
 // HTTP /status callers.
 type Status struct {
-	Running            bool   `json:"running"`
-	Port               int    `json:"port"`
-	Version            string `json:"version"`
-	ExtensionConnected bool   `json:"extension_connected"`
-	ExtensionID        string `json:"extension_id"`
-	ExtensionVersion   string `json:"extension_version"`
-	UptimeSeconds      int    `json:"uptime_seconds"`
+	Running            bool              `json:"running"`
+	Port               int               `json:"port"`
+	Version            string            `json:"version"`
+	ExtensionConnected bool              `json:"extension_connected"`
+	InstanceID         string            `json:"instance_id"`
+	ExtensionID        string            `json:"extension_id"`
+	ExtensionVersion   string            `json:"extension_version"`
+	Extensions         []ExtensionStatus `json:"extensions"`
+	UptimeSeconds      int               `json:"uptime_seconds"`
+}
+
+// ExtensionStatus describes one connected browser extension instance.
+type ExtensionStatus struct {
+	InstanceID       string `json:"instance_id"`
+	ExtensionID      string `json:"extension_id"`
+	ExtensionName    string `json:"extension_name,omitempty"`
+	ExtensionVersion string `json:"extension_version"`
 }
 
 // LogOptions configures the logs subcommand output.

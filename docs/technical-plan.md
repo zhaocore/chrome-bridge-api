@@ -16,8 +16,8 @@
 
 | Method | Path | Purpose | Request | Response |
 |---|---|---|---|---|
-| `GET` | `/status` | Health and connection state | none | `{running, port, version, extension_connected, extension_id, extension_version, uptime_seconds}` |
-| `POST` | `/command` | Agent tool-call entrypoint | `{action,args,session,timeout_ms}` | success `{data}` or error `{error}` |
+| `GET` | `/status` | Health and connection state | none | `{running, port, version, extension_connected, instance_id, extension_id, extension_version, extensions, uptime_seconds}` |
+| `POST` | `/command` | Agent tool-call entrypoint | `{action,args,session,instance_id,timeout_ms}` | success `{data}` or error `{error}` |
 | `GET` | `/tools` | Supported tool metadata | none | `{tools:[...]}` |
 | `POST` | `/api/connections` | Popup compatibility | empty body | `{url:"ws://127.0.0.1:<compiled-port>/ws", port:<compiled-port>}` |
 
@@ -26,13 +26,13 @@
 The Chrome extension connects to `GET /ws` and sends:
 
 ```json
-{"type":"hello","payload":{"extensionName":"chrome-bridge","extensionVersion":"0.1.0"}}
+{"type":"hello","payload":{"extensionName":"chrome-bridge","extensionVersion":"0.1.0","extensionId":"abcdefghijklmnop","instanceId":"4dfe0e08-cdd2-4f53-a36d-c39f1eaab1b8"}}
 ```
 
 The daemon responds:
 
 ```json
-{"type":"hello_ack","payload":{"version":"dev"}}
+{"type":"hello_ack","payload":{"version":"dev","instanceId":"4dfe0e08-cdd2-4f53-a36d-c39f1eaab1b8"}}
 ```
 
 For each HTTP command the daemon sends:
@@ -62,7 +62,11 @@ or:
 - `internal/files`: screenshot/PDF base64 decoding and filesystem output adaptation.
 - `internal/runtime`: daemon process, pid, logs and CLI support helpers.
 
-`POST /command` validates the action, injects session state, forwards one `tool_call`, normalizes file-returning tools, updates session tab state and returns `{data}`. Browser behavior stays inside the Chrome extension.
+`POST /command` validates the action, resolves the requested or session-bound
+extension instance, injects session state, forwards one `tool_call`, normalizes
+file-returning tools, updates session tab state and returns `{data}`. With more
+than one connected instance, an unbound request must supply `instance_id`.
+Browser behavior stays inside the Chrome extension.
 
 ## Tool Args
 
@@ -89,7 +93,8 @@ or:
 ## Test Plan
 
 - HTTP handler tests for `/status`, `/command`, `/tools`, `/api/connections`.
-- WebSocket tests with a fake extension for `hello`, `tool_call`, `tool_result`, disconnect and timeout.
+- WebSocket tests with fake extensions for `hello`, instance routing, reconnect,
+  `tool_call`, `tool_result`, disconnect and timeout.
 - Session tests for `_session`, `_tabId`, `_tabIds` injection and tab update.
 - File tests for screenshot/PDF decoding, default paths, custom paths and PDF size limit.
 - Runtime helper tests for status parsing and log argument parsing.

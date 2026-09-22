@@ -4,7 +4,15 @@ import "testing"
 
 func TestSessionPrepareAndUpdate(t *testing.T) {
 	store := NewStore()
-	store.Update("navigate", "task", map[string]any{"tabId": float64(42)})
+	store.Update("navigate", "task", "instance-a", map[string]any{"tabId": float64(42)})
+
+	instanceID, err := store.ResolveInstance("task", "")
+	if err != nil || instanceID != "instance-a" {
+		t.Fatalf("expected instance-a, got %q error %v", instanceID, err)
+	}
+	if _, err := store.ResolveInstance("task", "instance-b"); err == nil {
+		t.Fatal("expected conflicting instance error")
+	}
 
 	args := store.Prepare("click", map[string]any{"selector": "#go"}, "task")
 	if args["_session"] != "task" {
